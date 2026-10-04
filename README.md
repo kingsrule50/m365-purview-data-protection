@@ -527,11 +527,18 @@ m365-purview-data-protection-lab/
 
 ---
 
-## Portfolio Note
+## Disclaimer
 
-I completed this project in a shared Microsoft 365 development tenant, with the tenant owner's approval, using test identities and fictional data only. Tenant names, administrator accounts and IP addresses have been redacted from the screenshots and evidence files.
+This project was completed in a controlled Microsoft 365 lab environment for educational, administrative, security-testing, and portfolio purposes.
+
+All test documents contain fictional data only. Card numbers are public test numbers, and no real people, accounts or card holders were involved. External sharing tests were performed only with an account I own.
+
+Sensitive tenant and account information shown in repository evidence has been redacted where appropriate.
 
 ---
 
+## Author
+
 **Chinedu K. Asuzu**
-Cloud Security Engineer | Microsoft 365 Security | Microsoft Purview | Microsoft Entra ID | Azure
+
+Azure Cloud Engineering & Cybersecurity | Microsoft 365 | Entra ID | Microsoft Purview | Microsoft Sentinel | Terraform
