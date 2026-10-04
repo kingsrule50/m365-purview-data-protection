@@ -1,0 +1,5 @@
+"Name","Priority","Disabled","BlockAccess","BlockAccessScope","NotifyUser","GenerateAlert","ReportSeverityLevel"
+"R04-HighlyConfidential-External","0","False","True","PerUser","LastModifier Owner","admin@<dev-tenant>","High"
+"R02-PCI-HighVolume","1","False","True","PerUser","LastModifier Owner","admin@<dev-tenant>","High"
+"R03-EmployeeID","2","False","True","PerUser","LastModifier Owner","admin@<dev-tenant>","Medium"
+"R01-PCI-LowVolume","3","False","False",,"LastModifier Owner","admin@<dev-tenant>","Low"

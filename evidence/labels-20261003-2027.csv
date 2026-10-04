@@ -1,0 +1,5 @@
+"DisplayName","Name","Priority"
+"KRU Public","KRU-LBL-Public","0"
+"KRU Internal","KRU-LBL-Internal","1"
+"KRU Confidential","KRU-LBL-Confidential","2"
+"KRU Highly Confidential","KRU-LBL-HighlyConfidential","3"
