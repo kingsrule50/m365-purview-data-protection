@@ -60,7 +60,7 @@ I set out to demonstrate that I can:
 
 ---
 
-## Technologies Used
+## Tools and Services Used
 
 - Microsoft Purview Information Protection (sensitivity labels and label policies)
 - Microsoft Purview Data Loss Prevention
@@ -135,7 +135,7 @@ I used two scoping methods on purpose:
 
 ---
 
-# Implementation
+## Implementation
 
 ## 1. Readiness and Tenant Baseline
 
@@ -366,7 +366,7 @@ Result:
 
 ---
 
-# Validation Results
+## Validation Results
 
 | Control / Test | Expected Result | Result | Evidence |
 |----------------|-----------------|--------|----------|
@@ -392,7 +392,7 @@ Result:
 
 ---
 
-# PowerShell Automation
+## PowerShell Automation
 
 This was a **PowerShell-assisted deployment with documented portal steps**. I scripted the identities, administrative unit, labels, custom SIT, DLP policy and verification. I did the label publishing, the SharePoint site and the retention policy in the portal, where visual confirmation of scope was the safer choice in a shared tenant.
 
@@ -424,7 +424,7 @@ $admin = 'admin@<dev-tenant>'
 
 ---
 
-# Security and Operational Principles Demonstrated
+## Security and Operational Principles Demonstrated
 
 **Blast-radius control:** every policy was scoped to a defined pilot, and I proved the scope with negative tests and a verification script instead of assuming it.
 
@@ -444,7 +444,7 @@ Readiness → Configure → Simulate → Review → Enforce → Test → Investi
 
 ---
 
-# Limitations and Future Work
+## Limitations and Future Work
 
 - **Workloads tested:** SharePoint Online only for DLP and retention, and Word for the web for labelling. Exchange, Teams, OneDrive DLP and Endpoint DLP were deliberately out of scope.
 - **Test set:** six purpose-built documents with known expected outcomes. That proves the rules behave as designed, but it is not a measure of false-positive or false-negative rates on real business content.
@@ -454,7 +454,7 @@ Readiness → Configure → Simulate → Review → Enforce → Test → Investi
 
 ---
 
-# Troubleshooting Lessons
+## Troubleshooting Lessons
 
 ### Override Is Not Approval
 
@@ -498,7 +498,7 @@ The retention wizard defaulted to all sites, seven years and automatic deletion.
 
 ---
 
-# Skills Demonstrated
+## Skills Demonstrated
 
 - Microsoft Purview Information Protection
 - Sensitivity label taxonomy and content markings
@@ -521,7 +521,7 @@ The retention wizard defaulted to all sites, seven years and automatic deletion.
 
 ---
 
-# Project Outcome
+## Project Outcome
 
 I delivered a complete data protection pilot, from readiness through enforcement, investigation and scope proof, without affecting anyone else in a shared tenant. All 15 documented test cases passed, and the post-enforcement scope proof passed 15 of 15 evaluated checks. Each result is linked to its evidence, and the PowerShell can rebuild the scripted parts and re-verify the pilot at any time.
 
