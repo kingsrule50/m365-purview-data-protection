@@ -46,13 +46,17 @@ Start-Transcript -Path (Join-Path $OutputFolder "scope-proof-$stamp.txt") | Out-
 Connect-IPPSSession -UserPrincipalName $AdminUPN -ShowBanner:$false -DisableWAM
 
 $results = [System.Collections.Generic.List[object]]::new()
+# Result types:
+#   PASS / FAIL       evaluated checks - the only rows counted in the pass total
+#   INFO              recorded for context, not a pass/fail control (e.g. current DLP mode)
+#   NOT IMPLEMENTED   optional phase that was not built (e.g. auto-labelling)
 function Add-Result {
-    param([string]$Check, [string]$Expected, [string]$Actual, [bool]$Pass)
+    param([string]$Check, [string]$Expected, [string]$Actual, [bool]$Pass, [string]$Status)
     $results.Add([pscustomobject]@{
         Check    = $Check
         Expected = $Expected
         Actual   = $Actual
-        Result   = if ($Pass) { 'PASS' } else { 'FAIL' }
+        Result   = if ($Status) { $Status } elseif ($Pass) { 'PASS' } else { 'FAIL' }
     })
 }
 function ConvertTo-Text($value) { (($value | ForEach-Object { "$_" }) -join '; ').Trim() }
@@ -86,7 +90,8 @@ if (Get-Module -ListAvailable Microsoft.Graph.Identity.DirectoryManagement) {
             ForEach-Object { $_.AdditionalProperties['userPrincipalName'] } | Where-Object { $_ })
         $outsiders = @($members | Where-Object { $_ -notlike "*@$($Pilot.PilotDomain)" })
         Add-Result 'AU members all on pilot domain' "Only @$($Pilot.PilotDomain)" "$($members.Count) members; outsiders: $(if ($outsiders) { $outsiders -join ', ' } else { 'none' })" ($members.Count -gt 0 -and -not $outsiders)
-        Add-Result 'AU membership rule (informational)' 'Dynamic, UPN matches pilot domain' "$($au.MembershipType): $($au.MembershipRule)" $true
+        Add-Result 'AU membership rule' 'Dynamic, UPN matches pilot domain' "$($au.MembershipType): $($au.MembershipRule)" `
+            (($au.MembershipType -eq 'Dynamic') -and ($au.MembershipRule -match [regex]::Escape([regex]::Escape($Pilot.PilotDomain))))
     } else {
         Add-Result 'Admin unit exists' $Pilot.AdminUnit 'Not found (fallback group design?)' $false
     }
@@ -122,7 +127,7 @@ foreach ($loc in 'ExchangeLocation', 'OneDriveLocation', 'TeamsLocation', 'Endpo
     $val = $dlp.$loc
     Add-Result "DLP $loc" 'Empty (off)' $(if (Test-IsEmpty $val) { '(empty)' } else { ConvertTo-Text $val }) (Test-IsEmpty $val)
 }
-Add-Result 'DLP mode (informational)' 'TestWithNotifications before CHG-PV-002, Enable after' $dlp.Mode $true
+Add-Result 'DLP mode' 'TestWithNotifications before CHG-PV-002, Enable after' $dlp.Mode -Status 'INFO'
 
 Get-DlpComplianceRule -Policy $Pilot.DlpPolicy |
     Select-Object Name, Priority, Disabled, BlockAccess, BlockAccessScope, NotifyUser, GenerateAlert, ReportSeverityLevel |
@@ -136,26 +141,30 @@ foreach ($loc in 'ExchangeLocation', 'OneDriveLocation', 'ModernGroupLocation') 
     Add-Result "Retention $loc" 'Empty (off)' $(if (Test-IsEmpty $val) { '(empty)' } else { ConvertTo-Text $val }) (Test-IsEmpty $val)
 }
 Add-Result 'Retention Preservation Lock' 'Not locked' "RestrictiveRetention = $($ret.RestrictiveRetention)" ($ret.RestrictiveRetention -ne $true)
-Add-Result 'Retention distribution (informational)' 'Success' $ret.DistributionStatus $true
+Add-Result 'Retention distribution' 'Success' $ret.DistributionStatus ("$($ret.DistributionStatus)" -eq 'Success')
 
 # ---- 6. Auto-labeling policy (optional phase) ----------------------------------
 # Remote cmdlet "not found" errors are non-terminating, so check for $null instead of try/catch.
 $alp = Get-AutoSensitivityLabelPolicy -Identity $Pilot.AutoLabelPolicy -ErrorAction SilentlyContinue
 if ($alp) {
     Add-Result 'Auto-label SharePoint scope' "Only $($Pilot.SiteName) (1 site)" (Get-LocationText $alp.SharePointLocation) (Test-PilotSiteOnly $alp.SharePointLocation)
-    Add-Result 'Auto-label mode (informational)' 'Simulation' $alp.Mode $true
+    Add-Result 'Auto-label mode' 'Simulation' $alp.Mode -Status 'INFO'
 }
 else {
-    Add-Result 'Auto-label policy (optional)' 'Optional phase' 'Not created (Phase 7 skipped)' $true
+    Add-Result 'Auto-label policy (optional)' 'Optional phase' 'Not created (Phase 7 skipped)' -Status 'NOT IMPLEMENTED'
 }
 
 # ---- Output ----------------------------------------------------------------------
 $results | Format-Table Result, Check, Actual -AutoSize -Wrap
 $results | Export-Csv (Join-Path $OutputFolder "scope-proof-$stamp.csv") -NoTypeInformation
 
-$fails = @($results | Where-Object Result -eq 'FAIL').Count
-if ($fails -eq 0) { Write-Host "`nALL SCOPE CHECKS PASSED - no tenant-wide impact detected." -ForegroundColor Green }
-else              { Write-Host "`n$fails CHECK(S) FAILED - review before continuing." -ForegroundColor Red }
+$checked = @($results | Where-Object { $_.Result -in 'PASS', 'FAIL' })
+$fails   = @($checked  | Where-Object Result -eq 'FAIL').Count
+$passes  = $checked.Count - $fails
+$other   = @($results  | Where-Object { $_.Result -notin 'PASS', 'FAIL' }).Count
+Write-Host "`nEvaluated checks: $passes / $($checked.Count) PASS   (plus $other INFO / NOT IMPLEMENTED rows, not counted)"
+if ($fails -eq 0) { Write-Host "ALL SCOPE CHECKS PASSED - no tenant-wide impact detected." -ForegroundColor Green }
+else              { Write-Host "$fails CHECK(S) FAILED - review before continuing." -ForegroundColor Red }
 
 Stop-Transcript | Out-Null
 Disconnect-ExchangeOnline -Confirm:$false

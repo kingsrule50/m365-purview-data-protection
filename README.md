@@ -6,6 +6,19 @@ I designed, automated and validated a Microsoft Purview data protection pilot fo
 
 > **Lab flow:** Readiness → Scope Boundary → Classify → Detect → Simulate → Enforce → Investigate → Prove Scope
 
+## At a Glance
+
+| Area | Result |
+|------|--------|
+| Pilot boundary | Labels scoped to a dynamic administrative unit (pilot domain only); DLP and retention scoped to one SharePoint site |
+| Classification | 4 sensitivity labels with markings, mandatory labelling, default label and downgrade justification |
+| Detection | Custom SIT for employee IDs plus the built-in Credit Card Number SIT |
+| DLP | 4 tiered rules taken from simulation to enforcement through a change record |
+| Test outcome | **15 of 15 documented test cases passed**, including negative and out-of-scope tests |
+| Scope proof | **15 / 15 evaluated checks passed after enforcement** (2 further rows recorded as INFO / NOT IMPLEMENTED) |
+
+**Contents:** [Problem](#the-problem-this-lab-solves) · [Environment](#lab-environment) · [Architecture](#architecture-and-logical-workflow) · [Implementation](#implementation) · [Validation Results](#validation-results) · [Automation](#powershell-automation) · [Limitations](#limitations-and-future-work) · [Lessons](#troubleshooting-lessons) · [Repository](#repository-structure)
+
 ---
 
 ## The Problem This Lab Solves
@@ -68,7 +81,7 @@ I set out to demonstrate that I can:
 | Shared Microsoft 365 development tenant | Environment shared with other administrators, so blast-radius control was mandatory |
 | `m365.kingsruleusa.com` | Dedicated domain representing the KRU pilot organisation |
 | `AU-KRU-Pilot` | Dynamic administrative unit: `(user.userPrincipalName -match "@m365\.kingsruleusa\.com$")` |
-| `purview.hr`, `purview.finance` | Pilot users on the KRU domain (Microsoft 365 E5) |
+| `purview.hr`, `purview.finance` | Pilot test users on the KRU domain (Microsoft 365 E5). Other users created later on the same domain join the AU automatically (see Lessons) |
 | `purview.control` | Control user **outside** the AU, used for negative testing |
 | `KRU-Purview-Pilot` | SharePoint site with HR-Records, Finance-Records and Public-Content libraries |
 | KRU Public / Internal / Confidential / Highly Confidential | Sensitivity label taxonomy, published only to `AU-KRU-Pilot` |
@@ -151,7 +164,7 @@ New-KruPilotIdentities.ps1
 Membership rule:
 (user.userPrincipalName -match "@m365\.kingsruleusa\.com$")
 
-Result:
+Result at build time:
 2 members, 0 outsiders
 ```
 
@@ -167,7 +180,7 @@ I created the `KRU-Purview-Pilot` communication site with three libraries and ga
 
 ## 4. Sensitivity Label Taxonomy and AU-Scoped Label Policy
 
-I created four labels with PowerShell in ascending sensitivity, each with its own content markings. I then published them in a label policy scoped to `AU-KRU-Pilot`, with mandatory labelling, **KRU Internal** as the default, and justification required to lower a label.
+I created four labels with PowerShell in ascending sensitivity, each with its own content markings. I then published them in the portal, where I could confirm the admin-unit picker visually, in a label policy scoped to `AU-KRU-Pilot`, with mandatory labelling, **KRU Internal** as the default, and justification required to lower a label.
 
 | Label | Markings |
 |-------|----------|
@@ -243,7 +256,7 @@ R04 is triggered by the **label**, not the content. The board memo deliberately 
 
 ## 9. Simulation Results
 
-I uploaded the six test documents as the pilot users. Policy tips appeared on exactly the files I expected, and the clean files were not flagged.
+I uploaded the six test documents as the pilot users. Policy tips appeared on exactly the files I expected, and the clean files in the test set were not flagged.
 
 [![Policy tips in HR-Records](screenshots/11a-policy-tips-hr-records.png)](screenshots/11a-policy-tips-hr-records.png)
 
@@ -332,51 +345,61 @@ The R02 match raised a high-severity DLP alert. I assigned it, classified it as 
 
 ---
 
-## 15. Scope Proof
+## 15. Post-Enforcement Scope Proof
 
-I finished with a read-only PowerShell script that checks every pilot object against the boundary and exports a CSV and transcript to `evidence/`. All 17 checks passed.
+After enforcement, I re-ran a read-only PowerShell script that checks every pilot object against the boundary and exports a CSV and transcript to `evidence/`. The script separates evaluated checks (PASS / FAIL) from rows recorded only for context (INFO) or for phases I did not build (NOT IMPLEMENTED), so only real checks count towards the total. The current DLP mode is recorded as **Enable**.
 
 [![Scope proof, all checks passed](screenshots/22-tc15-scope-proof-all-pass.png)](screenshots/22-tc15-scope-proof-all-pass.png)
 
 ```
-Checks:
-Labels, AU membership, label policy AU scope,
-DLP locations, retention locations, Preservation Lock
+Evaluated checks (15):
+Labels, AU membership and rule, label policy AU scope,
+DLP locations (5), retention locations (4), Preservation Lock, retention distribution
+
+Recorded, not counted (2):
+DLP mode = Enable (INFO)
+Auto-label policy (NOT IMPLEMENTED)
 
 Result:
-17 / 17 PASS - no tenant-wide impact detected
+15 / 15 evaluated checks PASS - no tenant-wide impact detected
 ```
 
 ---
 
 # Validation Results
 
-| Control / Test | Expected Result | Result |
-|----------------|-----------------|--------|
-| TC-01 Pilot user labels | Four KRU labels visible | PASS |
-| TC-02 Control user labels | No KRU labels visible | PASS |
-| TC-03 Default and mandatory labelling | KRU Internal applied by default | PASS |
-| TC-04 Content markings | KRU Confidential header applied | PASS |
-| TC-05 Downgrade justification | Justification required to lower a label | PASS |
-| TC-06 Custom SIT accuracy | 85 / 65 / no match / no match | PASS |
-| TC-07 R01 low-volume card data | Policy tip only; guest can open | PASS |
-| TC-08 R02 high-volume card data | Guest blocked; alert raised | PASS |
-| TC-09 R03 employee IDs | Blocked; override with justification allowed | PASS |
-| TC-10 R04 Highly Confidential | Blocked by label; no override | PASS |
-| TC-11 Near-miss false-positive check | No match; guest can open | PASS |
-| TC-12 OneDrive out of scope | Same file, no match | PASS |
-| TC-13 Retention | Deleted file preserved | PASS |
-| TC-14 Audit trail | Downgrade and justification traceable | PASS |
-| TC-15 Scope proof | 17 / 17 checks pass | PASS |
+| Control / Test | Expected Result | Result | Evidence |
+|----------------|-----------------|--------|----------|
+| TC-01 Pilot user labels | Four KRU labels visible | PASS | [05](screenshots/05-tc01-pilot-user-sees-kru-labels.png) |
+| TC-02 Control user labels | No KRU labels visible | PASS | [06](screenshots/06-tc02-control-user-no-labels.png) |
+| TC-03a Default label | New document receives KRU Internal automatically | PASS | Policy setting [03](screenshots/03-label-policy-scoped-to-au.png); behaviour verified manually, no screenshot |
+| TC-03b Mandatory labelling | A label cannot be removed, only changed | PASS | Policy setting [03](screenshots/03-label-policy-scoped-to-au.png); behaviour verified manually, no screenshot |
+| TC-04 Content markings | KRU Confidential header applied | PASS | [07](screenshots/07-tc04-confidential-header.png) |
+| TC-05 Downgrade justification | Justification required to lower a label | PASS | [08](screenshots/08-tc05-downgrade-justification.png) |
+| TC-06 Custom SIT accuracy | 85 / 65 / no match / no match | PASS | [09](screenshots/09-tc06-custom-sit-tests.png) |
+| TC-07 R01 low-volume card data | Policy tip only; guest can open | PASS | [11b](screenshots/11b-policy-tips-finance-records.png), [15](screenshots/15-tc07-guest-can-open-single-card.png) |
+| TC-08 R02 high-volume card data | Guest blocked; alert raised | PASS | [16a](screenshots/16a-tc08-guest-blocked.png), [16b](screenshots/16b-tc08-dlp-enforced-match.png), [17](screenshots/17-dlp-alert-triage-benign-positive.png) |
+| TC-09 R03 employee IDs | Blocked; override with justification allowed | PASS | [18](screenshots/18-tc09-share-blocked-in-dialog.png), [19](screenshots/19-tc09-override-submitted.png) |
+| TC-10 R04 Highly Confidential | Blocked by label; no override | PASS | [20](screenshots/20-tc10-r04-policy-tip-in-word.png), [21](screenshots/21-tc10-no-override-label-driven.png) |
+| TC-11 Near-miss false-positive check | No match; guest can open | PASS | [11a](screenshots/11a-policy-tips-hr-records.png), [12](screenshots/12-dlp-simulation-matches-by-rule.png) (no match recorded); external open verified manually |
+| TC-12 OneDrive out of scope | Same file, no match | PASS | [11c](screenshots/11c-tc12-onedrive-out-of-scope-no-tip.png), [12](screenshots/12-dlp-simulation-matches-by-rule.png) |
+| TC-13 Retention | Deleted file preserved | PASS | [13](screenshots/13-tc13-preservation-hold-library.png) |
+| TC-14 Audit trail | Downgrade and justification traceable | PASS | [14a](screenshots/14a-tc14-activity-explorer-downgrade.png), [14b](screenshots/14b-tc14-unified-audit-justification.png) |
+| TC-15 Scope proof (post-enforcement) | All evaluated checks pass | PASS | [22](screenshots/22-tc15-scope-proof-all-pass.png), [`evidence/`](evidence/) |
 
-**Simulation:** 4 of 4 expected rule matches, 0 false positives, 0 out-of-scope matches.
-**Overall:** 15 of 15 test cases passed.
+**Simulation:** 4 of 4 expected rule matches, with 0 false positives and 0 out-of-scope matches observed in the documented six-document test set.
+**Overall:** 15 of 15 test cases passed (TC-03 is reported as two sub-checks).
 
 ---
 
 # PowerShell Automation
 
-Every script is idempotent, supports `-WhatIf`, uses interactive sign-in only and stores no credentials. Tenant-specific values are **required parameters**, never defaults, so a script cannot run against the wrong tenant by accident.
+This was a **PowerShell-assisted deployment with documented portal steps**. I scripted the identities, administrative unit, labels, custom SIT, DLP policy and verification. I did the label publishing, the SharePoint site and the retention policy in the portal, where visual confirmation of scope was the safer choice in a shared tenant.
+
+- Every script uses interactive sign-in only and stores no credentials.
+- The scripts that **make changes** support `-WhatIf`. The readiness and verification scripts are read-only, so they make no changes to preview.
+- The build scripts are idempotent in the simple sense: an object that already exists is **reported and skipped, not reconciled**. A changed setting on an existing object is not corrected by re-running the script.
+- Tenant-specific values (admin account, site URL, alert mailbox, control domain) are **required parameters**. The pilot domain is a default parameter in the build scripts and a setting in the verification script, because it defines the lab itself.
 
 | Script | Purpose |
 |--------|---------|
@@ -421,6 +444,16 @@ Readiness → Configure → Simulate → Review → Enforce → Test → Investi
 
 ---
 
+# Limitations and Future Work
+
+- **Workloads tested:** SharePoint Online only for DLP and retention, and Word for the web for labelling. Exchange, Teams, OneDrive DLP and Endpoint DLP were deliberately out of scope.
+- **Test set:** six purpose-built documents with known expected outcomes. That proves the rules behave as designed, but it is not a measure of false-positive or false-negative rates on real business content.
+- **Manual steps:** label publishing, the SharePoint site and retention were configured in the portal, and some behaviours (TC-03, the TC-11 external open) were verified manually without a screenshot.
+- **Not implemented:** auto-labelling with the custom SIT, and forwarding Purview alerts to Microsoft Sentinel through Defender XDR. Both are shown as future extensions in the architecture diagram.
+- **Production recommendations:** Insider Risk Management with Adaptive Protection for override abuse, encryption on the Highly Confidential label, and a larger representative content sample before broad enforcement.
+
+---
+
 # Troubleshooting Lessons
 
 ### Override Is Not Approval
@@ -455,6 +488,10 @@ Label-change events are tagged with `AU-KRU-Pilot`, so a delegated administrator
 
 A partial file name in the ObjectId field returned 0 results. Searching by user and date returned 178. Activity explorer was the faster place to investigate.
 
+### Dynamic Membership Follows the Domain, Not the Project
+
+The administrative unit had 2 members at build time. When I later created five more users on the same domain for a separate PowerShell lab, they joined `AU-KRU-Pilot` automatically and became eligible for the KRU labels. The boundary held (no users outside the domain), but a domain-based rule includes everyone on the domain. For a stricter pilot I would add an attribute condition, such as department or extensionAttribute, or use a separate domain for unrelated labs.
+
 ### Portal Defaults Are Risky in a Shared Tenant
 
 The retention wizard defaulted to all sites, seven years and automatic deletion. In a shared tenant, every default must be checked before saving.
@@ -486,7 +523,7 @@ The retention wizard defaulted to all sites, seven years and automatic deletion.
 
 # Project Outcome
 
-I delivered a complete data protection pilot, from readiness through enforcement, investigation and scope proof, without affecting anyone else in a shared tenant. All 15 test cases passed. Every control is backed by a screenshot or script output, and the PowerShell can rebuild and re-verify the pilot.
+I delivered a complete data protection pilot, from readiness through enforcement, investigation and scope proof, without affecting anyone else in a shared tenant. All 15 documented test cases passed, and the post-enforcement scope proof passed 15 of 15 evaluated checks. Each result is linked to its evidence, and the PowerShell can rebuild the scripted parts and re-verify the pilot at any time.
 
 This project is directly relevant to Microsoft 365 security, data protection and compliance engineering roles, where Purview controls must protect sensitive data without disrupting the business.
 
@@ -511,10 +548,10 @@ m365-purview-data-protection-lab/
 |   \-- Verify-PurviewPilotScope.ps1
 |
 |-- evidence/
-|   |-- dlp-rules-20261003-2027.csv
-|   |-- labels-20261003-2027.csv
-|   |-- scope-proof-20261003-2027.csv
-|   \-- scope-proof-20261003-2027.txt
+|   |-- dlp-rules-20261005-1221.csv
+|   |-- labels-20261005-1221.csv
+|   |-- scope-proof-20261005-1221.csv
+|   \-- scope-proof-20261005-1221.txt
 |
 |-- test-data/
 |   \-- 6 fictional test documents (.docx)
